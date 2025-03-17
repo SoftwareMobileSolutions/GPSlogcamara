@@ -36,6 +36,7 @@
         public string gpsTime { get; set; } = null;
         public string gpsSpeed { get; set; } = null;
         public string satellite { get; set; } = null;
+        public string gpsNum { get; set; } = null;
         public string lat { get; set; } = null;
         public string posType { get; set; } = null;
         public string direction { get; set; } = null;

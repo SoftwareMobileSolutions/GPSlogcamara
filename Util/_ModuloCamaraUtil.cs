@@ -85,25 +85,23 @@ namespace gpslogcamara.Util
             //******************TODAS LAS SOLICITUDES LAS COLOCA EN COLA PARA QUE SE EJECUTEN DE 1 EN 1 Y CONTINUA CON LA SIGUIENTE HASTA QUE SE HAYA DESPACHADO
             public async Task<T> SendPostRequestAsync<T>(string url, Dictionary<string, string> parameters)
             {
-                
                 int currentProcessNumber = Interlocked.Increment(ref _processNumber);
-                Interlocked.Increment(ref _pendingRequests);
 
                 Console.ForegroundColor = ConsoleColor.DarkCyan;
-                Console.WriteLine(DateTime.Now.ToString("[yyyy-MM-dd HH:mm:ss] ") + $"PROCESO WEB {currentProcessNumber} INICIADO. EN COLA: {_pendingRequests}, DESPACHADOS: {_dispatchedRequests}");
+                Console.WriteLine(DateTime.Now.ToString("[yyyy-MM-dd HH:mm:ss] ") +
+                                  $"PROCESO WEB {currentProcessNumber} INICIADO. EN COLA: {_pendingRequests}, DESPACHADOS: {_dispatchedRequests}");
                 Console.ResetColor();
 
-                await _semaphore.WaitAsync(); // Esperar turno en la cola
+                await _semaphore.WaitAsync().ConfigureAwait(false); // Bloquea hasta que se libere
 
-                Interlocked.Decrement(ref _pendingRequests);
+                Interlocked.Increment(ref _pendingRequests);
 
                 try
                 {
-                    T datos = default(T)!;
+                    T datos = default!;
                     using (var client = new HttpClient())
                     {
                         var requestContent = new FormUrlEncodedContent(parameters!);
-
                         HttpResponseMessage response = await client.PostAsync(url, requestContent);
 
                         if (response.IsSuccessStatusCode)
@@ -111,22 +109,25 @@ namespace gpslogcamara.Util
                             string responseContent = await response.Content.ReadAsStringAsync();
                             datos = JsonConvert.DeserializeObject<T>(responseContent)!;
                         }
-                        else
-                        {
-                            string errorContent = await response.Content.ReadAsStringAsync();
-                        }
+
+                        
                     }
+
                     return datos;
                 }
                 finally
                 {
+                    Interlocked.Decrement(ref _pendingRequests);
                     Interlocked.Increment(ref _dispatchedRequests);
 
                     Console.ForegroundColor = ConsoleColor.DarkCyan;
-                    Console.WriteLine(DateTime.Now.ToString("[yyyy-MM-dd HH:mm:ss] ") + $"PROCESO WEB FINALIZADO. EN COLA: {_pendingRequests}, DESPACHADOS: {_dispatchedRequests}");
+                    Console.WriteLine(DateTime.Now.ToString("[yyyy-MM-dd HH:mm:ss] ") +
+                                      $"PROCESO WEB FINALIZADO. EN COLA: {_pendingRequests}, DESPACHADOS: {_dispatchedRequests}");
                     Console.ResetColor();
 
-                    _semaphore.Release(); // Liberar el semáforo para que la siguiente solicitud pueda ejecutarse
+                    await Task.Delay(100); // Espera 100ms antes de liberar el semáforo
+
+                    _semaphore.Release(); // Libera el semáforo
                 }
             }
         }
